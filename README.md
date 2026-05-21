@@ -69,10 +69,20 @@ https://generativelanguage.googleapis.com/v1beta/openai
 ```
 
 7. `API Key` 填你的 Google Gemini API key
+8. 如果畫面有 `Model` 或 `Model ID` 欄位，填：
+
+```text
+gemma-4-31b-it
+```
 
 這個 URL 是 Google Gemini 的 OpenAI-compatible endpoint，因此 OpenWhispr 可以把它當成
 custom OpenAI-compatible language model provider 使用。這會呼叫 Google API；是否免費、
 是否有額度限制，取決於你的 Google API key 與帳號方案。
+
+目前建議用 `gemma-4-31b-it`，也就是 Gemma 4 31B，作為 `Dictation Cleanup`
+的文字清理模型。選它的原因是：在目前這組 Google API 額度下，每日請求處理上限約可到
+1,500 次，對快捷語音輸入的短句修正比較夠用。實際可用模型與每日請求上限仍以
+Google AI Studio / Gemini API 後台顯示為準。
 
 ## 啟動或更換模型
 
