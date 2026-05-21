@@ -5,6 +5,16 @@ from fastapi.testclient import TestClient
 import main
 
 
+OPENWHISPR_CLEANUP_PROMPT = (
+    '* Input: "开箱。" (Simplified Chinese) * Role: Text cleanup tool for transcribed '
+    "speech. * Task: Clean up transcribed text, fix grammar/punctuation, remove "
+    "fillers, convert to Traditional Chinese (as per language context). * Constraint: "
+    'Output ONLY cleaned text. No commentary. * "开箱" means "unboxing". * It Is a '
+    'very short phrase. * Convert Simplified Chinese "开箱" to Traditional Chinese '
+    '"開箱". * Keep the punctuation if it makes sense, or just the text. * 开箱。'
+)
+
+
 class GeminiProxyConversionTests(unittest.TestCase):
     def test_fallback_google_text_model_list_includes_current_gemini_and_gemma_models(self):
         ids = {model["id"] for model in main._google_text_model_entries()}
@@ -71,7 +81,7 @@ class GeminiProxyConversionTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            payload["systemInstruction"],
+            payload["system_instruction"],
             {"parts": [{"text": "Clean up dictation only."}]},
         )
         self.assertEqual(
@@ -80,6 +90,27 @@ class GeminiProxyConversionTests(unittest.TestCase):
         )
         self.assertEqual(payload["generationConfig"]["temperature"], 0.2)
         self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 256)
+
+    def test_converts_openwhispr_cleanup_prompt_to_plain_transcript_input(self):
+        payload = main._openai_chat_to_gemini_payload(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": OPENWHISPR_CLEANUP_PROMPT,
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(
+            payload["contents"],
+            [{"role": "user", "parts": [{"text": "开箱。"}]}],
+        )
+        system_text = payload["system_instruction"]["parts"][0]["text"]
+        self.assertIn("Output ONLY the cleaned text", system_text)
+        self.assertIn("Convert Simplified Chinese to Traditional Chinese", system_text)
+        self.assertNotIn("Input:", system_text)
 
     def test_converts_gemini_response_to_openai_chat_response(self):
         response = main._gemini_response_to_openai_chat(
@@ -156,6 +187,38 @@ class GeminiProxyEndpointTests(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["model"], "gemma-4-31b-it")
         self.assertEqual(data["choices"][0]["message"]["content"], "hello cleaned")
+
+    def test_chat_completions_does_not_forward_openwhispr_cleanup_prompt_as_user_text(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(payload["contents"][0]["parts"][0]["text"], "开箱。")
+            self.assertNotIn("Input:", payload["contents"][0]["parts"][0]["text"])
+            self.assertIn("Output ONLY the cleaned text", payload["system_instruction"]["parts"][0]["text"])
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": "開箱。"}]},
+                        "finishReason": "STOP",
+                    }
+                ]
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "gemma-4-31b-it",
+                    "messages": [{"role": "user", "content": OPENWHISPR_CLEANUP_PROMPT}],
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["choices"][0]["message"]["content"], "開箱。")
 
     def test_responses_endpoint_returns_openai_responses_shape(self):
         async def fake_call(model, payload, api_key):

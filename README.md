@@ -266,6 +266,19 @@ systemctl --user stop qwen-openwhispr-asr.service
 journalctl --user-unit=qwen-openwhispr-asr.service -n 120 --no-pager
 ```
 
+### 文字清理回傳整段 prompt
+
+如果 OpenWhispr 的 cleaned text 變成 `Input:`、`Role:`、`Task:` 這類提示詞原文，代表
+language model 把 OpenWhispr 的 cleanup prompt 當成一般文字處理了。本服務會偵測這種
+OpenWhispr cleanup prompt，只把真正的 `Input` 內容送給 Gemini / Gemma，並在 proxy 層加上
+嚴格的 cleanup system instruction。
+
+更新後重新執行腳本即可：
+
+```bash
+./run_qwen_asr.sh --model-size 0.6B
+```
+
 ### 第一次啟動很久
 
 第一次會下載 Python 依賴與 Qwen3-ASR 權重，屬於正常現象。後續啟動會快很多。
