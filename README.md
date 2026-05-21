@@ -48,6 +48,32 @@ cd qwen-openwhispr-asr
 http://127.0.0.1:8179/v1
 ```
 
+## 可選：OpenWhispr 文字清理模型
+
+如果你想讓 OpenWhispr 在語音轉文字後再做 AI 修正，例如移除口語 filler words、
+修正標點、整理語法，可以到 OpenWhispr 的 `Language Models` 頁面設定。
+
+這一段是文字後處理，不是 ASR 本體；ASR 仍然由本機 Qwen3-ASR bridge 負責。
+
+設定方式：
+
+1. 開啟 `Language Models`
+2. 選 `Dictation Cleanup`
+3. 打開 `Enable text cleanup`
+4. 選 `Cloud Providers`
+5. 下方 provider 選 `Custom`
+6. `Endpoint URL` 填：
+
+```text
+https://generativelanguage.googleapis.com/v1beta/openai
+```
+
+7. `API Key` 填你的 Google Gemini API key
+
+這個 URL 是 Google Gemini 的 OpenAI-compatible endpoint，因此 OpenWhispr 可以把它當成
+custom OpenAI-compatible language model provider 使用。這會呼叫 Google API；是否免費、
+是否有額度限制，取決於你的 Google API key 與帳號方案。
+
 ## 啟動或更換模型
 
 只需要執行同一個腳本。每次執行時，它都會先停止舊的
