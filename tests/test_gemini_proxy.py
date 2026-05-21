@@ -14,6 +14,22 @@ OPENWHISPR_CLEANUP_PROMPT = (
     '"開箱". * Keep the punctuation if it makes sense, or just the text. * 开箱。'
 )
 
+OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY = (
+    '* Input: "我是认真的。测试一下啦，你看它上面语音辨识出问题。" '
+    "* Task: Text cleanup of transcribed speech. * Constraints: * Remove filler words. "
+    "* Fix grammar, spelling, punctuation. * Remove false starts/stutters. "
+    "* Preserve voice/tone/intent. * Output ONLY cleaned text. "
+    '* Language: Traditional Chinese. * "我是认真的。" (I\'m serious.) - Clear. '
+    '* "测试一下啦，" (Just testing it.) - Clear. '
+    '* "你看它上面语音辨识出问题。" (Look, the speech recognition on it has a problem.) - Clear. '
+    "* The input is already quite clean, but it's in Simplified Chinese. "
+    "* The system prompt requires Traditional Chinese output. "
+    "* Simplified: 我是认真的。测试一下啦，你看它上面语音辨识出问题。 "
+    "* Traditional: 我是認真的。測試一下啦，你看它上面語音辨識出問題。 "
+    "* No filler words to remove. * No false starts. * Punctuation is okay. "
+    "* Convert to Traditional Chinese.我是認真的。測試一下啦，你看它上面語音辨識出問題。"
+)
+
 
 class GeminiProxyConversionTests(unittest.TestCase):
     def test_fallback_google_text_model_list_includes_current_gemini_and_gemma_models(self):
@@ -111,6 +127,40 @@ class GeminiProxyConversionTests(unittest.TestCase):
         self.assertIn("Output ONLY the cleaned text", system_text)
         self.assertIn("Convert Simplified Chinese to Traditional Chinese", system_text)
         self.assertNotIn("Input:", system_text)
+
+    def test_converts_task_only_openwhispr_cleanup_prompt_to_plain_transcript_input(self):
+        state = {}
+        payload = main._openai_chat_to_gemini_payload(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY,
+                    }
+                ]
+            },
+            cleanup_state=state,
+        )
+
+        self.assertEqual(
+            payload["contents"],
+            [
+                {
+                    "role": "user",
+                    "parts": [{"text": "我是认真的。测试一下啦，你看它上面语音辨识出问题。"}],
+                }
+            ],
+        )
+        self.assertEqual(state["input"], "我是认真的。测试一下啦，你看它上面语音辨识出问题。")
+
+    def test_sanitizes_leaked_openwhispr_cleanup_prompt_from_model_response(self):
+        self.assertEqual(
+            main._sanitize_cleanup_response(
+                OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY,
+                cleanup_input="我是认真的。测试一下啦，你看它上面语音辨识出问题。",
+            ),
+            "我是認真的。測試一下啦，你看它上面語音辨識出問題。",
+        )
 
     def test_converts_gemini_response_to_openai_chat_response(self):
         response = main._gemini_response_to_openai_chat(
@@ -220,6 +270,42 @@ class GeminiProxyEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["choices"][0]["message"]["content"], "開箱。")
 
+    def test_chat_completions_strips_leaked_openwhispr_cleanup_prompt_response(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(
+                payload["contents"][0]["parts"][0]["text"],
+                "我是认真的。测试一下啦，你看它上面语音辨识出问题。",
+            )
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY}]},
+                        "finishReason": "STOP",
+                    }
+                ]
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "gemma-4-31b-it",
+                    "messages": [{"role": "user", "content": OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY}],
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["choices"][0]["message"]["content"],
+            "我是認真的。測試一下啦，你看它上面語音辨識出問題。",
+        )
+
     def test_responses_endpoint_returns_openai_responses_shape(self):
         async def fake_call(model, payload, api_key):
             self.assertEqual(model, "gemma-4-31b-it")
@@ -256,6 +342,43 @@ class GeminiProxyEndpointTests(unittest.TestCase):
         self.assertEqual(data["object"], "response")
         self.assertEqual(data["output"][0]["content"][0]["text"], "hello cleaned")
         self.assertEqual(data["usage"]["total_tokens"], 5)
+
+    def test_responses_endpoint_strips_leaked_openwhispr_cleanup_prompt_response(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(
+                payload["contents"][0]["parts"][0]["text"],
+                "我是认真的。测试一下啦，你看它上面语音辨识出问题。",
+            )
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY}]},
+                        "finishReason": "STOP",
+                    }
+                ],
+                "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 2, "totalTokenCount": 5},
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/responses",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "gemma-4-31b-it",
+                    "input": OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY,
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["output"][0]["content"][0]["text"],
+            "我是認真的。測試一下啦，你看它上面語音辨識出問題。",
+        )
 
 
 if __name__ == "__main__":

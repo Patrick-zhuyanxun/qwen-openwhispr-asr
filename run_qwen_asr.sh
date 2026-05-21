@@ -52,6 +52,8 @@ systemd-run \
   --user \
   --unit="$SERVICE_NAME" \
   --collect \
+  --property=StandardOutput=journal \
+  --property=StandardError=journal \
   "${SYSTEMD_ENV_ARGS[@]}" \
   --working-directory="$APP_DIR" \
   "$APP_DIR/run_qwen_asr.sh" --serve "$@"

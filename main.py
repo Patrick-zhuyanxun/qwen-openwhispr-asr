@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import re
 import shutil
@@ -67,6 +68,7 @@ MODEL_BY_SIZE = {
 }
 
 app = FastAPI(title="Qwen3-ASR OpenWhispr Bridge")
+logger = logging.getLogger("uvicorn.error")
 
 _model: Qwen3ASRModel | None = None
 _model_lock = threading.Lock()
@@ -197,11 +199,16 @@ def _extract_openwhispr_cleanup_input(text: str) -> str | None:
     return None
 
 
-def _openai_chat_to_gemini_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _openai_chat_to_gemini_payload(
+    payload: dict[str, Any],
+    cleanup_state: dict[str, str] | None = None,
+) -> dict[str, Any]:
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
         raise HTTPException(status_code=400, detail="messages must be a non-empty list")
 
+    cleanup_detected = False
+    cleanup_contents: list[dict[str, Any]] = []
     system_parts: list[dict[str, str]] = []
     contents: list[dict[str, Any]] = []
     for message in messages:
@@ -214,9 +221,10 @@ def _openai_chat_to_gemini_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
         cleanup_input = _extract_openwhispr_cleanup_input(text)
         if cleanup_input is not None:
-            if not any(part.get("text") == STRICT_CLEANUP_SYSTEM_PROMPT for part in system_parts):
-                system_parts.append({"text": STRICT_CLEANUP_SYSTEM_PROMPT})
-            contents.append({"role": "user", "parts": [{"text": cleanup_input}]})
+            cleanup_detected = True
+            if cleanup_state is not None:
+                cleanup_state["input"] = cleanup_input
+            cleanup_contents.append({"role": "user", "parts": [{"text": cleanup_input}]})
             continue
 
         if role in {"system", "developer"}:
@@ -224,6 +232,10 @@ def _openai_chat_to_gemini_payload(payload: dict[str, Any]) -> dict[str, Any]:
         else:
             gemini_role = "model" if role == "assistant" else "user"
             contents.append({"role": gemini_role, "parts": [{"text": text}]})
+
+    if cleanup_detected:
+        contents = cleanup_contents
+        system_parts = [{"text": STRICT_CLEANUP_SYSTEM_PROMPT}]
 
     if not contents:
         raise HTTPException(status_code=400, detail="at least one user or assistant message is required")
@@ -256,9 +268,72 @@ def _openai_chat_to_gemini_payload(payload: dict[str, Any]) -> dict[str, Any]:
     elif isinstance(stop, list) and all(isinstance(item, str) for item in stop):
         generation_config["stopSequences"] = stop
 
+    if cleanup_detected:
+        generation_config.setdefault("temperature", 0.0)
+        generation_config.setdefault("maxOutputTokens", 256)
+
     if generation_config:
         gemini_payload["generationConfig"] = generation_config
     return gemini_payload
+
+
+def _cleanup_candidate_from_leaked_prompt(text: str) -> str | None:
+    traditional_matches = re.findall(
+        r"(?:^|\*)\s*Traditional:\s*(?P<output>.*?)(?=\s*\*|$)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for candidate in reversed(traditional_matches):
+        candidate = candidate.strip()
+        if candidate:
+            return candidate
+
+    segments = [segment.strip() for segment in text.split("*") if segment.strip()]
+    if not segments:
+        return None
+
+    candidate = segments[-1]
+    candidate = re.sub(
+        r"^(?:Convert to Traditional Chinese\.|Punctuation is okay\.|No false starts\.|"
+        r"No filler words to remove\.|Keep the punctuation if it makes sense, or just the text\.)\s*",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    ).strip()
+    return candidate or None
+
+
+def _sanitize_cleanup_response(text: str, cleanup_input: str | None = None) -> str:
+    if cleanup_input is None or not _looks_like_openwhispr_cleanup_prompt(text):
+        return text
+
+    candidate = _cleanup_candidate_from_leaked_prompt(text)
+    if candidate and not _looks_like_openwhispr_cleanup_prompt(candidate):
+        return candidate
+    return cleanup_input
+
+
+def _log_gemini_proxy_request(
+    endpoint: str,
+    model: str,
+    gemini_payload: dict[str, Any],
+    cleanup_input: str | None = None,
+) -> None:
+    forwarded_text = " ".join(
+        str(part.get("text") or "")
+        for content in gemini_payload.get("contents", [])
+        if isinstance(content, dict)
+        for part in content.get("parts", [])
+        if isinstance(part, dict)
+    )
+    logger.info(
+        "Gemini proxy request endpoint=%s model=%s cleanup=%s content_chars=%s forwarded_prompt_marker=%s",
+        endpoint,
+        model,
+        cleanup_input is not None,
+        len(forwarded_text),
+        "Input:" in forwarded_text,
+    )
 
 
 def _openai_responses_to_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -298,11 +373,16 @@ def _finish_reason(gemini_reason: str | None) -> str:
     }.get((gemini_reason or "").upper(), "stop")
 
 
-def _gemini_response_to_openai_chat(payload: dict[str, Any], model: str) -> dict[str, Any]:
+def _gemini_response_to_openai_chat(
+    payload: dict[str, Any],
+    model: str,
+    cleanup_input: str | None = None,
+) -> dict[str, Any]:
     candidates = payload.get("candidates") or []
     candidate = candidates[0] if candidates else {}
     parts = ((candidate.get("content") or {}).get("parts")) or []
     text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+    text = _sanitize_cleanup_response(text, cleanup_input)
     usage = payload.get("usageMetadata") or {}
 
     return {
@@ -402,8 +482,12 @@ async def _call_gemini_generate_content(
     return response.json()
 
 
-def _gemini_response_to_openai_response(payload: dict[str, Any], model: str) -> dict[str, Any]:
-    chat = _gemini_response_to_openai_chat(payload, model)
+def _gemini_response_to_openai_response(
+    payload: dict[str, Any],
+    model: str,
+    cleanup_input: str | None = None,
+) -> dict[str, Any]:
+    chat = _gemini_response_to_openai_chat(payload, model, cleanup_input)
     text = chat["choices"][0]["message"]["content"]
     usage = chat["usage"]
     return {
@@ -605,10 +689,13 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=400, detail="JSON body must be an object")
 
     model = _normalize_gemini_model(payload.get("model"))
-    gemini_payload = _openai_chat_to_gemini_payload(payload)
+    cleanup_state: dict[str, str] = {}
+    gemini_payload = _openai_chat_to_gemini_payload(payload, cleanup_state=cleanup_state)
+    cleanup_input = cleanup_state.get("input")
+    _log_gemini_proxy_request("/v1/chat/completions", model, gemini_payload, cleanup_input)
     api_key = _gemini_api_key_from_request(request)
     gemini_response = await _call_gemini_generate_content(model, gemini_payload, api_key)
-    return JSONResponse(_gemini_response_to_openai_chat(gemini_response, model))
+    return JSONResponse(_gemini_response_to_openai_chat(gemini_response, model, cleanup_input))
 
 
 @app.post("/responses")
@@ -620,10 +707,13 @@ async def responses(request: Request):
 
     chat_payload = _openai_responses_to_chat_payload(payload)
     model = _normalize_gemini_model(chat_payload.get("model"))
-    gemini_payload = _openai_chat_to_gemini_payload(chat_payload)
+    cleanup_state: dict[str, str] = {}
+    gemini_payload = _openai_chat_to_gemini_payload(chat_payload, cleanup_state=cleanup_state)
+    cleanup_input = cleanup_state.get("input")
+    _log_gemini_proxy_request("/v1/responses", model, gemini_payload, cleanup_input)
     api_key = _gemini_api_key_from_request(request)
     gemini_response = await _call_gemini_generate_content(model, gemini_payload, api_key)
-    return JSONResponse(_gemini_response_to_openai_response(gemini_response, model))
+    return JSONResponse(_gemini_response_to_openai_response(gemini_response, model, cleanup_input))
 
 
 @app.post("/v1/audio/transcriptions")

@@ -266,12 +266,29 @@ systemctl --user stop qwen-openwhispr-asr.service
 journalctl --user-unit=qwen-openwhispr-asr.service -n 120 --no-pager
 ```
 
+文字清理請求進來時，日誌會出現類似：
+
+```text
+Gemini proxy request endpoint=/v1/chat/completions model=gemma-4-31b-it cleanup=True content_chars=25 forwarded_prompt_marker=False
+```
+
+`cleanup=True` 代表服務已偵測到 OpenWhispr 的 cleanup prompt；
+`forwarded_prompt_marker=False` 代表送往 Gemini / Gemma 的內容已不包含 `Input:` 這類
+prompt 標記。
+
+如果 `--user-unit` 看不到 Python / Uvicorn 的子程序輸出，可以改用：
+
+```bash
+journalctl --user --since "10 minutes ago" --no-pager | rg "Gemini proxy|Uvicorn|Qwen3-ASR"
+```
+
 ### 文字清理回傳整段 prompt
 
 如果 OpenWhispr 的 cleaned text 變成 `Input:`、`Role:`、`Task:` 這類提示詞原文，代表
 language model 把 OpenWhispr 的 cleanup prompt 當成一般文字處理了。本服務會偵測這種
 OpenWhispr cleanup prompt，只把真正的 `Input` 內容送給 Gemini / Gemma，並在 proxy 層加上
-嚴格的 cleanup system instruction。
+嚴格的 cleanup system instruction。若模型仍然把 prompt 原樣回傳，本服務也會在回應端做
+最後一道清理，避免整段 prompt 被貼到 Terminal。
 
 更新後重新執行腳本即可：
 
