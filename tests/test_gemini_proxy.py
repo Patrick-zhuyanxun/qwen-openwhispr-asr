@@ -30,6 +30,20 @@ OPENWHISPR_CLEANUP_PROMPT_TASK_ONLY = (
     "* Convert to Traditional Chinese.我是認真的。測試一下啦，你看它上面語音辨識出問題。"
 )
 
+OPENWHISPR_CLEANUP_PROMPT_GOAL_ARROW = """*   Input: "现在测试，这样正常。" (Now testing, this is normal.)
+    *   Role: Text cleanup tool for transcribed speech.
+    *   Goal: Clean up filler words, fix grammar/punctuation, remove false starts, preserve voice/intent, output ONLY cleaned text in Traditional Chinese.
+
+    *   "现在测试，这样正常。"
+    *   It's a simple statement. No filler words, no stutters, no false starts.
+    *   Language: Simplified Chinese.
+    *   Target Language: Traditional Chinese.
+
+    *   "现在测试，这样正常。" $\\rightarrow$ "現在測試，這樣正常。"
+
+    *   Output ONLY the cleaned text.
+    *   No commentary.現在測試，這樣正常。"""
+
 
 class GeminiProxyConversionTests(unittest.TestCase):
     def test_fallback_google_text_model_list_includes_current_gemini_and_gemma_models(self):
@@ -153,6 +167,26 @@ class GeminiProxyConversionTests(unittest.TestCase):
         )
         self.assertEqual(state["input"], "我是认真的。测试一下啦，你看它上面语音辨识出问题。")
 
+    def test_converts_goal_arrow_openwhispr_cleanup_prompt_to_plain_transcript_input(self):
+        state = {}
+        payload = main._openai_chat_to_gemini_payload(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": OPENWHISPR_CLEANUP_PROMPT_GOAL_ARROW,
+                    }
+                ]
+            },
+            cleanup_state=state,
+        )
+
+        self.assertEqual(
+            payload["contents"],
+            [{"role": "user", "parts": [{"text": "现在测试，这样正常。"}]}],
+        )
+        self.assertEqual(state["input"], "现在测试，这样正常。")
+
     def test_sanitizes_leaked_openwhispr_cleanup_prompt_from_model_response(self):
         self.assertEqual(
             main._sanitize_cleanup_response(
@@ -160,6 +194,15 @@ class GeminiProxyConversionTests(unittest.TestCase):
                 cleanup_input="我是认真的。测试一下啦，你看它上面语音辨识出问题。",
             ),
             "我是認真的。測試一下啦，你看它上面語音辨識出問題。",
+        )
+
+    def test_sanitizes_goal_arrow_openwhispr_cleanup_prompt_from_model_response(self):
+        self.assertEqual(
+            main._sanitize_cleanup_response(
+                OPENWHISPR_CLEANUP_PROMPT_GOAL_ARROW,
+                cleanup_input="现在测试，这样正常。",
+            ),
+            "現在測試，這樣正常。",
         )
 
     def test_converts_gemini_response_to_openai_chat_response(self):
@@ -305,6 +348,36 @@ class GeminiProxyEndpointTests(unittest.TestCase):
             response.json()["choices"][0]["message"]["content"],
             "我是認真的。測試一下啦，你看它上面語音辨識出問題。",
         )
+
+    def test_chat_completions_strips_goal_arrow_openwhispr_cleanup_prompt_response(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(payload["contents"][0]["parts"][0]["text"], "现在测试，这样正常。")
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": OPENWHISPR_CLEANUP_PROMPT_GOAL_ARROW}]},
+                        "finishReason": "STOP",
+                    }
+                ]
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "gemma-4-31b-it",
+                    "messages": [{"role": "user", "content": OPENWHISPR_CLEANUP_PROMPT_GOAL_ARROW}],
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["choices"][0]["message"]["content"], "現在測試，這樣正常。")
 
     def test_responses_endpoint_returns_openai_responses_shape(self):
         async def fake_call(model, payload, api_key):

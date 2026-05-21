@@ -190,7 +190,7 @@ def _extract_openwhispr_cleanup_input(text: str) -> str | None:
         return quoted.group("input").strip()
 
     unquoted = re.search(
-        r"Input:\s*(?P<input>.*?)(?=\s*\*?\s*(?:Role|Task|Constraint):|$)",
+        r"Input:\s*(?P<input>.*?)(?=\s*\*?\s*(?:Role|Task|Goal|Constraint):|$)",
         text,
         flags=re.IGNORECASE | re.DOTALL,
     )
@@ -278,6 +278,16 @@ def _openai_chat_to_gemini_payload(
 
 
 def _cleanup_candidate_from_leaked_prompt(text: str) -> str | None:
+    arrow_matches = re.findall(
+        r"(?:->|→|\$?\\rightarrow\$?)\s*[\"“](?P<output>.*?)[\"”]",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for candidate in reversed(arrow_matches):
+        candidate = candidate.strip()
+        if candidate:
+            return candidate
+
     traditional_matches = re.findall(
         r"(?:^|\*)\s*Traditional:\s*(?P<output>.*?)(?=\s*\*|$)",
         text,
@@ -293,13 +303,20 @@ def _cleanup_candidate_from_leaked_prompt(text: str) -> str | None:
         return None
 
     candidate = segments[-1]
-    candidate = re.sub(
+    cleanup_prefix_pattern = (
         r"^(?:Convert to Traditional Chinese\.|Punctuation is okay\.|No false starts\.|"
-        r"No filler words to remove\.|Keep the punctuation if it makes sense, or just the text\.)\s*",
-        "",
-        candidate,
-        flags=re.IGNORECASE,
-    ).strip()
+        r"No filler words to remove\.|Keep the punctuation if it makes sense, or just the text\.|"
+        r"Output ONLY the cleaned text\.|No commentary\.)\s*"
+    )
+    previous = None
+    while candidate != previous:
+        previous = candidate
+        candidate = re.sub(
+            cleanup_prefix_pattern,
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        ).strip()
     return candidate or None
 
 
