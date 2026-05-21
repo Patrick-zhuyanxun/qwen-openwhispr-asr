@@ -5,6 +5,7 @@ description = "OpenWhispr-compatible Qwen3-ASR self-hosted transcription server"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.1",
+    "httpx>=0.28.1",
     "python-multipart>=0.0.29",
     "qwen-asr>=0.0.6",
     "uvicorn[standard]>=0.47.0",

@@ -65,24 +65,53 @@ http://127.0.0.1:8179/v1
 6. `Endpoint URL` 填：
 
 ```text
-https://generativelanguage.googleapis.com/v1beta/openai
+http://127.0.0.1:8179/v1
 ```
 
 7. `API Key` 填你的 Google Gemini API key
-8. 如果畫面有 `Model` 或 `Model ID` 欄位，填：
+8. 如果畫面有 `Model` 或 `Model ID` 欄位，可以選或填：
 
 ```text
 gemma-4-31b-it
 ```
 
-這個 URL 是 Google Gemini 的 OpenAI-compatible endpoint，因此 OpenWhispr 可以把它當成
-custom OpenAI-compatible language model provider 使用。這會呼叫 Google API；是否免費、
-是否有額度限制，取決於你的 Google API key 與帳號方案。
+這裡填的是本機 proxy，不是 Google 官方 endpoint。原因是 OpenWhispr 目前會把
+`generativelanguage.googleapis.com` 這類已知非 OpenAI provider 的 Custom URL 拒絕掉，
+然後 fallback 到 OpenAI endpoint，造成 Google API key 被拿去打 OpenAI。
+
+本服務會把 OpenWhispr 送來的 OpenAI-compatible `chat/completions` 或 `responses`
+請求轉成 Google Gemini API `generateContent` 請求，所以可以在 OpenWhispr 的
+`Custom` provider 裡使用 Google Gemini / Gemma 模型。
 
 目前建議用 `gemma-4-31b-it`，也就是 Gemma 4 31B，作為 `Dictation Cleanup`
 的文字清理模型。選它的原因是：在目前這組 Google API 額度下，每日請求處理上限約可到
 1,500 次，對快捷語音輸入的短句修正比較夠用。實際可用模型與每日請求上限仍以
 Google AI Studio / Gemini API 後台顯示為準。
+
+本機 `/v1/models` 會列出 Google 目前支援的文字模型 fallback 清單；如果 OpenWhispr
+會讀取 Custom provider 的 models endpoint，就會看到這些選項。若 UI 沒有自動顯示，
+也可以直接手動輸入 model id。
+
+目前 fallback 清單包含：
+
+```text
+gemma-4-31b-it
+gemma-4-26b-a4b-it
+gemini-3.5-flash
+gemini-3.1-pro-preview
+gemini-3.1-pro-preview-customtools
+gemini-3-flash-preview
+gemini-3.1-flash-lite
+gemini-3.1-flash-lite-preview
+gemini-2.5-flash
+gemini-2.5-flash-lite
+gemini-2.5-pro
+```
+
+如果你的 Google API key 可用，本服務也可以透過 Google `models.list` 讀取即時模型清單，
+並保留 `supportedGenerationMethods` 包含 `generateContent` 的文字生成模型。
+OpenWhispr 有時會把 Gemma 存成 `models/gemma-4-31b-it`，本服務會自動正規化成
+`gemma-4-31b-it`。
 
 ## 啟動或更換模型
 
@@ -117,6 +146,14 @@ Google AI Studio / Gemini API 後台顯示為準。
 QWEN_ASR_MODEL_SIZE=1.7B ./run_qwen_asr.sh
 QWEN_ASR_DTYPE=float16 ./run_qwen_asr.sh
 QWEN_ASR_PORT=8179 ./run_qwen_asr.sh
+GEMINI_CLEANUP_MODEL=gemma-4-31b-it ./run_qwen_asr.sh
+```
+
+通常不需要把 Google API key 放在環境變數；直接填在 OpenWhispr 的 `API Key` 欄位即可。
+如果你想讓服務啟動後即使 request 沒帶 key 也能呼叫 Google，可以用：
+
+```bash
+GEMINI_API_KEY=你的_google_api_key ./run_qwen_asr.sh
 ```
 
 ## 模型選擇建議
@@ -163,8 +200,11 @@ POST /v1/audio/transcriptions
 本服務也支援：
 
 - `POST /audio/transcriptions`
+- `POST /v1/chat/completions`
+- `POST /v1/responses`
 - `GET /health`
 - `GET /v1/models`
+- `GET /models`
 
 ## 手動測試轉錄
 
@@ -181,6 +221,27 @@ curl -X POST http://127.0.0.1:8179/v1/audio/transcriptions \
 
 ```json
 {"text":"..."}
+```
+
+測試文字清理 proxy：
+
+```bash
+curl -X POST http://127.0.0.1:8179/v1/chat/completions \
+  -H "Authorization: Bearer $GEMINI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma-4-31b-it",
+    "messages": [
+      {"role": "system", "content": "Clean up dictation text. Return only the corrected text."},
+      {"role": "user", "content": "呃 幫我 修正 這段話 的 標點"}
+    ]
+  }'
+```
+
+查看本機提供給 OpenWhispr 的模型選項：
+
+```bash
+curl http://127.0.0.1:8179/v1/models
 ```
 
 ## 常見問題

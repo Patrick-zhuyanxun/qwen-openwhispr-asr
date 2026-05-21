@@ -25,11 +25,34 @@ sleep 1
 pkill -KILL -f "${APP_DIR}/.venv/bin/python3 main.py" >/dev/null 2>&1 || true
 pkill -KILL -f "uv run python main.py --warmup --host ${HOST} --port ${PORT}" >/dev/null 2>&1 || true
 
+SYSTEMD_ENV_ARGS=()
+for env_name in \
+  QWEN_ASR_HOST \
+  QWEN_ASR_PORT \
+  QWEN_ASR_MODEL_SIZE \
+  QWEN_ASR_DTYPE \
+  QWEN_ASR_DEVICE \
+  QWEN_ASR_MAX_NEW_TOKENS \
+  GEMINI_API_KEY \
+  GOOGLE_API_KEY \
+  GOOGLE_GENERATIVE_AI_API_KEY \
+  GEMINI_CLEANUP_MODEL \
+  GEMINI_API_BASE_URL \
+  GEMINI_PROXY_TIMEOUT \
+  GEMINI_MODELS_TIMEOUT \
+  GEMINI_PROXY_LIVE_MODELS
+do
+  if [[ -n "${!env_name:-}" ]]; then
+    SYSTEMD_ENV_ARGS+=(--setenv="${env_name}=${!env_name}")
+  fi
+done
+
 echo "Starting ${UNIT_NAME}..."
 systemd-run \
   --user \
   --unit="$SERVICE_NAME" \
   --collect \
+  "${SYSTEMD_ENV_ARGS[@]}" \
   --working-directory="$APP_DIR" \
   "$APP_DIR/run_qwen_asr.sh" --serve "$@"
 
@@ -39,6 +62,7 @@ for _ in $(seq 1 120); do
     curl -sS "http://${HOST}:${PORT}/health"
     echo
     echo "OpenWhispr Server URL: http://${HOST}:${PORT}/v1"
+    echo "OpenWhispr Language Model Custom URL: http://${HOST}:${PORT}/v1"
     exit 0
   fi
   sleep 1

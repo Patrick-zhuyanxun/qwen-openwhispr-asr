@@ -1,0 +1,199 @@
+import unittest
+
+from fastapi.testclient import TestClient
+
+import main
+
+
+class GeminiProxyConversionTests(unittest.TestCase):
+    def test_fallback_google_text_model_list_includes_current_gemini_and_gemma_models(self):
+        ids = {model["id"] for model in main._google_text_model_entries()}
+
+        self.assertIn("gemini-3.5-flash", ids)
+        self.assertIn("gemini-3.1-pro-preview", ids)
+        self.assertIn("gemini-3.1-flash-lite", ids)
+        self.assertIn("gemini-2.5-flash", ids)
+        self.assertIn("gemini-2.5-pro", ids)
+        self.assertIn("gemma-4-31b-it", ids)
+        self.assertIn("gemma-4-26b-a4b-it", ids)
+
+    def test_filters_google_models_list_to_generate_content_models(self):
+        models = main._google_text_models_from_listing(
+            {
+                "models": [
+                    {
+                        "name": "models/gemini-3.5-flash",
+                        "displayName": "Gemini 3.5 Flash",
+                        "supportedGenerationMethods": ["generateContent"],
+                    },
+                    {
+                        "name": "models/gemini-embedding-001",
+                        "displayName": "Gemini Embedding",
+                        "supportedGenerationMethods": ["embedContent"],
+                    },
+                    {
+                        "name": "models/gemini-3.1-flash-tts-preview",
+                        "displayName": "Gemini TTS",
+                        "supportedGenerationMethods": ["generateContent"],
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(
+            models,
+            [
+                {
+                    "id": "gemini-3.5-flash",
+                    "object": "model",
+                    "owned_by": "google",
+                    "display_name": "Gemini 3.5 Flash",
+                }
+            ],
+        )
+
+    def test_normalizes_models_prefix_from_openwhispr(self):
+        self.assertEqual(
+            main._normalize_gemini_model("models/gemma-4-31b-it"),
+            "gemma-4-31b-it",
+        )
+
+    def test_converts_openai_messages_to_gemini_payload(self):
+        payload = main._openai_chat_to_gemini_payload(
+            {
+                "messages": [
+                    {"role": "system", "content": "Clean up dictation only."},
+                    {"role": "user", "content": "呃 幫我 修正 標點"},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 256,
+            }
+        )
+
+        self.assertEqual(
+            payload["systemInstruction"],
+            {"parts": [{"text": "Clean up dictation only."}]},
+        )
+        self.assertEqual(
+            payload["contents"],
+            [{"role": "user", "parts": [{"text": "呃 幫我 修正 標點"}]}],
+        )
+        self.assertEqual(payload["generationConfig"]["temperature"], 0.2)
+        self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 256)
+
+    def test_converts_gemini_response_to_openai_chat_response(self):
+        response = main._gemini_response_to_openai_chat(
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {"text": "幫我修正標點。"},
+                                {"text": "\n"},
+                            ]
+                        },
+                        "finishReason": "STOP",
+                    }
+                ],
+                "usageMetadata": {
+                    "promptTokenCount": 12,
+                    "candidatesTokenCount": 8,
+                    "totalTokenCount": 20,
+                },
+            },
+            model="gemma-4-31b-it",
+        )
+
+        self.assertEqual(response["object"], "chat.completion")
+        self.assertEqual(response["model"], "gemma-4-31b-it")
+        self.assertEqual(response["choices"][0]["message"]["role"], "assistant")
+        self.assertEqual(response["choices"][0]["message"]["content"], "幫我修正標點。\n")
+        self.assertEqual(response["choices"][0]["finish_reason"], "stop")
+        self.assertEqual(response["usage"]["total_tokens"], 20)
+
+
+class GeminiProxyEndpointTests(unittest.TestCase):
+    def test_models_endpoint_includes_google_text_models(self):
+        client = TestClient(main.app)
+        response = client.get("/v1/models")
+
+        self.assertEqual(response.status_code, 200)
+        ids = {model["id"] for model in response.json()["data"]}
+        self.assertIn("Qwen/Qwen3-ASR-0.6B", ids)
+        self.assertIn("gemini-3.5-flash", ids)
+        self.assertIn("gemma-4-31b-it", ids)
+
+    def test_chat_completions_uses_local_proxy_and_returns_openai_shape(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(model, "gemma-4-31b-it")
+            self.assertEqual(api_key, "test-google-key")
+            self.assertEqual(payload["contents"][0]["parts"][0]["text"], "hello")
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": "hello cleaned"}]},
+                        "finishReason": "STOP",
+                    }
+                ]
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/chat/completions",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "models/gemma-4-31b-it",
+                    "messages": [{"role": "user", "content": "hello"}],
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["model"], "gemma-4-31b-it")
+        self.assertEqual(data["choices"][0]["message"]["content"], "hello cleaned")
+
+    def test_responses_endpoint_returns_openai_responses_shape(self):
+        async def fake_call(model, payload, api_key):
+            self.assertEqual(model, "gemma-4-31b-it")
+            self.assertEqual(api_key, "test-google-key")
+            self.assertEqual(payload["contents"][0]["parts"][0]["text"], "hello")
+            return {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": "hello cleaned"}]},
+                        "finishReason": "STOP",
+                    }
+                ],
+                "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 2, "totalTokenCount": 5},
+            }
+
+        old_call = main._call_gemini_generate_content
+        main._call_gemini_generate_content = fake_call
+        try:
+            client = TestClient(main.app)
+            response = client.post(
+                "/v1/responses",
+                headers={"Authorization": "Bearer test-google-key"},
+                json={
+                    "model": "gemma-4-31b-it",
+                    "input": "hello",
+                    "instructions": "Clean up dictation only.",
+                },
+            )
+        finally:
+            main._call_gemini_generate_content = old_call
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["object"], "response")
+        self.assertEqual(data["output"][0]["content"][0]["text"], "hello cleaned")
+        self.assertEqual(data["usage"]["total_tokens"], 5)
+
+
+if __name__ == "__main__":
+    unittest.main()
