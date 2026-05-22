@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" role="img" aria-labelledby="title desc">
+  <title id="title">OpenWhispr Language Models Custom Provider Settings</title>
+  <desc id="desc">OpenWhispr Language Models screen showing Cloud Providers active, Custom selected, OpenRouter endpoint URL, API key, and Available Models.</desc>
+  <rect width="900" height="540" fill="#ffffff"/>
+  <rect x="0" y="0" width="212" height="540" fill="#f7f7f8"/>
+
+  <text x="22" y="42" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8b8b90">ACCOUNT</text>
+  <text x="58" y="77" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Account</text>
+  <text x="58" y="118" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Plans &amp; Billing</text>
+
+  <text x="22" y="167" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8b8b90">APP</text>
+  <text x="58" y="205" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Preferences</text>
+  <text x="58" y="245" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Hotkeys</text>
+
+  <text x="22" y="295" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8b8b90">AI MODELS</text>
+  <text x="58" y="334" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Speech-to-Text</text>
+  <rect x="12" y="355" width="194" height="42" rx="8" fill="#eeeeef"/>
+  <text x="58" y="381" font-family="Arial, sans-serif" font-size="14" fill="#202124">Language Models</text>
+
+  <text x="22" y="435" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8b8b90">SYSTEM</text>
+  <text x="58" y="473" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">Privacy &amp; Data</text>
+  <text x="58" y="513" font-family="Arial, sans-serif" font-size="14" fill="#4c4c50">System</text>
+
+  <text x="238" y="40" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111111">Language Models</text>
+  <text x="238" y="63" font-family="Arial, sans-serif" font-size="13" fill="#6f6f75">Configure models for cleanup, note formatting, and chat</text>
+
+  <rect x="238" y="78" width="142" height="28" rx="14" fill="#e8f0ff" stroke="#9bbcff"/>
+  <text x="260" y="96" font-family="Arial, sans-serif" font-size="13" fill="#123a8c">Dictation Cleanup</text>
+  <rect x="386" y="78" width="101" height="28" rx="14" fill="#ffffff" stroke="#dadce0"/>
+  <text x="408" y="96" font-family="Arial, sans-serif" font-size="13" fill="#444444">Voice Agent</text>
+  <rect x="493" y="78" width="128" height="28" rx="14" fill="#ffffff" stroke="#dadce0"/>
+  <text x="518" y="96" font-family="Arial, sans-serif" font-size="13" fill="#444444">Note Formatting</text>
+  <rect x="627" y="78" width="64" height="28" rx="14" fill="#ffffff" stroke="#dadce0"/>
+  <text x="650" y="96" font-family="Arial, sans-serif" font-size="13" fill="#444444">Chat</text>
+
+  <rect x="238" y="120" width="630" height="384" rx="8" fill="#ffffff" stroke="#ececef"/>
+  <rect x="238" y="120" width="630" height="58" rx="8" fill="#ffffff"/>
+  <text x="286" y="145" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#232326">OpenWhispr Cloud</text>
+  <text x="286" y="165" font-family="Arial, sans-serif" font-size="12" fill="#7a7a80">Reliable accuracy. No setup needed.</text>
+  <circle cx="834" cy="149" r="7" fill="#ffffff" stroke="#c9c9ce" stroke-width="2"/>
+
+  <line x1="238" y1="178" x2="868" y2="178" stroke="#eeeeef"/>
+  <rect x="238" y="178" width="630" height="58" fill="#ffffff"/>
+  <rect x="254" y="195" width="32" height="32" rx="7" fill="#eef3ff"/>
+  <text x="286" y="203" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#232326">Cloud Providers</text>
+  <rect x="396" y="188" width="48" height="22" rx="4" fill="#dfe8ff"/>
+  <text x="405" y="204" font-family="Arial, sans-serif" font-size="12" fill="#1d5be3">Active</text>
+  <text x="286" y="223" font-family="Arial, sans-serif" font-size="12" fill="#7a7a80">Bring your own API key.</text>
+  <circle cx="834" cy="207" r="7" fill="#ffffff" stroke="#2b66e9" stroke-width="4"/>
+
+  <line x1="238" y1="236" x2="868" y2="236" stroke="#eeeeef"/>
+  <rect x="238" y="236" width="630" height="58" fill="#ffffff"/>
+  <text x="286" y="261" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#232326">Local</text>
+  <text x="286" y="281" font-family="Arial, sans-serif" font-size="12" fill="#7a7a80">On-device models. Fully private.</text>
+  <circle cx="834" cy="265" r="7" fill="#ffffff" stroke="#c9c9ce" stroke-width="2"/>
+
+  <line x1="238" y1="294" x2="868" y2="294" stroke="#eeeeef"/>
+  <rect x="238" y="294" width="630" height="58" fill="#ffffff"/>
+  <text x="286" y="319" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#232326">Self-Hosted</text>
+  <text x="286" y="339" font-family="Arial, sans-serif" font-size="12" fill="#7a7a80">Your own server on your network.</text>
+  <circle cx="834" cy="323" r="7" fill="#ffffff" stroke="#c9c9ce" stroke-width="2"/>
+
+  <line x1="238" y1="352" x2="868" y2="352" stroke="#eeeeef"/>
+  <rect x="238" y="352" width="630" height="58" fill="#ffffff"/>
+  <text x="286" y="377" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#232326">Enterprise</text>
+  <text x="286" y="397" font-family="Arial, sans-serif" font-size="12" fill="#7a7a80">Use your organization's cloud account.</text>
+  <circle cx="834" cy="381" r="7" fill="#ffffff" stroke="#c9c9ce" stroke-width="2"/>
+
+  <rect x="238" y="426" width="78" height="30" rx="15" fill="#ffffff" stroke="#dadce0"/>
+  <text x="258" y="446" font-family="Arial, sans-serif" font-size="14" fill="#333333">OpenAI</text>
+  <rect x="324" y="426" width="96" height="30" rx="15" fill="#ffffff" stroke="#dadce0"/>
+  <text x="350" y="446" font-family="Arial, sans-serif" font-size="14" fill="#333333">Anthropic</text>
+  <rect x="428" y="426" width="118" height="30" rx="15" fill="#ffffff" stroke="#dadce0"/>
+  <text x="454" y="446" font-family="Arial, sans-serif" font-size="14" fill="#333333">Google Gemini</text>
+  <rect x="555" y="426" width="67" height="30" rx="15" fill="#ffffff" stroke="#dadce0"/>
+  <text x="585" y="446" font-family="Arial, sans-serif" font-size="14" fill="#333333">Groq</text>
+  <rect x="632" y="426" width="81" height="30" rx="15" fill="#e8f0ff" stroke="#9bbcff"/>
+  <text x="669" y="446" font-family="Arial, sans-serif" font-size="14" fill="#123a8c">Custom</text>
+
+  <text x="238" y="484" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111111">Endpoint URL</text>
+  <rect x="238" y="497" width="630" height="40" rx="6" fill="#ffffff" stroke="#dadce0"/>
+  <text x="252" y="522" font-family="Arial, sans-serif" font-size="14" fill="#111111">https://openrouter.ai/api/v1</text>
+</svg>
