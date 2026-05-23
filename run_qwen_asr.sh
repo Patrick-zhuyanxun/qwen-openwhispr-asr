@@ -32,15 +32,7 @@ for env_name in \
   QWEN_ASR_MODEL_SIZE \
   QWEN_ASR_DTYPE \
   QWEN_ASR_DEVICE \
-  QWEN_ASR_MAX_NEW_TOKENS \
-  GEMINI_API_KEY \
-  GOOGLE_API_KEY \
-  GOOGLE_GENERATIVE_AI_API_KEY \
-  GEMINI_CLEANUP_MODEL \
-  GEMINI_API_BASE_URL \
-  GEMINI_PROXY_TIMEOUT \
-  GEMINI_MODELS_TIMEOUT \
-  GEMINI_PROXY_LIVE_MODELS
+  QWEN_ASR_MAX_NEW_TOKENS
 do
   if [[ -n "${!env_name:-}" ]]; then
     SYSTEMD_ENV_ARGS+=(--setenv="${env_name}=${!env_name}")
@@ -64,7 +56,6 @@ for _ in $(seq 1 120); do
     curl -sS "http://${HOST}:${PORT}/health"
     echo
     echo "OpenWhispr Server URL: http://${HOST}:${PORT}/v1"
-    echo "OpenWhispr Language Model Custom URL: http://${HOST}:${PORT}/v1"
     exit 0
   fi
   sleep 1

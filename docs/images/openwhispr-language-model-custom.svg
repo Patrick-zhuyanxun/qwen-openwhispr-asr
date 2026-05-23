@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" role="img" aria-labelledby="title desc">
   <title id="title">OpenWhispr Language Models Custom Provider Settings</title>
-  <desc id="desc">OpenWhispr Language Models screen showing Cloud Providers active, Custom selected, OpenRouter endpoint URL, API key, and Available Models.</desc>
+  <desc id="desc">OpenWhispr Language Models screen showing Cloud Providers active, Custom selected, NVIDIA Build endpoint URL, API key, and Available Models.</desc>
   <rect width="900" height="540" fill="#ffffff"/>
   <rect x="0" y="0" width="212" height="540" fill="#f7f7f8"/>
 
@@ -79,5 +79,5 @@
 
   <text x="238" y="484" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111111">Endpoint URL</text>
   <rect x="238" y="497" width="630" height="40" rx="6" fill="#ffffff" stroke="#dadce0"/>
-  <text x="252" y="522" font-family="Arial, sans-serif" font-size="14" fill="#111111">https://openrouter.ai/api/v1</text>
+  <text x="252" y="522" font-family="Arial, sans-serif" font-size="14" fill="#111111">https://integrate.api.nvidia.com/v1</text>
 </svg>

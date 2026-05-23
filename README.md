@@ -84,27 +84,24 @@ http://127.0.0.1:8179/v1
 這一段是文字後處理，不是 ASR 本體；ASR 仍然由本機 Qwen3-ASR bridge 負責。
 
 設定畫面會像下面這樣：先選 `Cloud Providers`，下方 provider 選 `Custom`，再把
-OpenRouter endpoint 與 API key 填進去。
+OpenRouter 或 NVIDIA Build 的 endpoint 與 API key 填進去。
 
 ![OpenWhispr Language Models Custom provider settings](docs/images/openwhispr-language-model-custom.svg)
 
-目前建議直接使用 OpenRouter 的 OpenAI-compatible endpoint。Gemma 4 31B 在 OpenRouter
-的 model id 是：
+目前建議直接讓 OpenWhispr 呼叫外部 OpenAI-compatible provider，不要再指到本機
+`http://127.0.0.1:8179/v1`。本專案現在只負責 ASR，不再轉接 language model cleanup。
 
-```text
-google/gemma-4-31b-it
-```
+可用方案：
 
-如果你想優先用免費 route，可以先試：
+| Provider | Endpoint URL | API key |
+| --- | --- | --- |
+| OpenRouter | `https://openrouter.ai/api/v1` | 到 [OpenRouter Keys](https://openrouter.ai/keys) 建立 |
+| NVIDIA Build | `https://integrate.api.nvidia.com/v1` | 到 [NVIDIA Build](https://build.nvidia.com/) 申請 |
 
-```text
-google/gemma-4-31b-it:free
-```
+NVIDIA Build 的 API key 通常會以 `nvapi-` 或 `nva...` 開頭，直接填到 OpenWhispr 的
+`API Key` 欄位即可。
 
-免費 route 可能會被限流或暫時不可用；如果 OpenWhispr `Test` 不穩，改回
-`google/gemma-4-31b-it`。
-
-設定方式：
+OpenRouter 設定：
 
 1. 開啟 `Language Models`
 2. 選 `Dictation Cleanup`
@@ -118,25 +115,34 @@ https://openrouter.ai/api/v1
 ```
 
 7. `API Key` 填你的 OpenRouter API key
-8. 如果畫面有 `Model` 或 `Model ID` 欄位，可以選或填：
+8. 按 `Refresh` 載入 `Available Models`
+9. 從清單選一個適合文字清理的 chat/text 模型；如果只能手動填，使用 OpenRouter 的 model id
+
+NVIDIA Build 設定：
+
+1. 開啟 `Language Models`
+2. 選 `Dictation Cleanup`
+3. 打開 `Enable text cleanup`
+4. 選 `Cloud Providers`
+5. 下方 provider 選 `Custom`
+6. `Endpoint URL` 填：
 
 ```text
-google/gemma-4-31b-it
+https://integrate.api.nvidia.com/v1
 ```
 
-如果 OpenWhispr 會載入 `Available Models` 清單，可以按 `Refresh` 後選
-`Gemma 4 31B Instruct`。如果清單有重複項目，選任一個 `Gemma 4 31B Instruct` 即可；
-手動填寫時仍以 `google/gemma-4-31b-it` 為準。
+7. `API Key` 填你在 [NVIDIA Build](https://build.nvidia.com/) 申請的 API key
+8. 按 `Refresh` 載入 `Available Models`
+9. 從清單選一個 NVIDIA Build 上可用的 chat/text 模型
 
-![OpenWhispr Gemma 4 31B model selection](docs/images/openwhispr-gemma-model-selection.svg)
+不同 provider、帳號或時間可用模型可能會變動，建議以 `Refresh` 後顯示的清單為準。
 
-OpenRouter 的 endpoint 是 OpenAI-compatible，所以 OpenWhispr 的 `Custom` cloud provider
-可以直接使用，不需要本專案轉接。這是目前建議的文字清理設定。
+NVIDIA Build 範例：
 
-舊版做法是把 OpenWhispr 的 `Custom` provider 指到本機
-`http://127.0.0.1:8179/v1`，再由本服務把請求轉成 Google Gemini API。這個路徑仍保留在
-程式裡當備用，但不再作為建議方案，因為 Gemma/Gemini 容易把 OpenWhispr 的 cleanup
-prompt 原文一起輸出。
+![OpenWhispr NVIDIA Build model selection](docs/images/openwhispr-nvidia-model-selection.svg)
+
+OpenRouter 和 NVIDIA Build 的 endpoint 都是 OpenAI-compatible，所以 OpenWhispr 的
+`Custom` cloud provider 可以直接使用，不需要本專案轉接。這是目前建議的文字清理設定。
 
 ## 啟動或更換模型
 
@@ -187,8 +193,8 @@ QWEN_ASR_DTYPE=float16 ./run_qwen_asr.sh
 QWEN_ASR_PORT=8179 ./run_qwen_asr.sh
 ```
 
-OpenRouter cleanup 直接由 OpenWhispr 呼叫，不需要把 OpenRouter API key 放進本服務的
-環境變數；直接填在 OpenWhispr 的 `API Key` 欄位即可。
+Dictation cleanup 直接由 OpenWhispr 呼叫 OpenRouter 或 NVIDIA Build，不需要把 provider
+API key 放進本服務的環境變數；直接填在 OpenWhispr 的 `API Key` 欄位即可。
 
 ## 模型選擇建議
 
@@ -240,8 +246,6 @@ POST /v1/audio/transcriptions
 本服務也支援：
 
 - `POST /audio/transcriptions`
-- `POST /v1/chat/completions`
-- `POST /v1/responses`
 - `GET /health`
 - `GET /v1/models`
 - `GET /models`
@@ -263,14 +267,31 @@ curl -X POST http://127.0.0.1:8179/v1/audio/transcriptions \
 {"text":"..."}
 ```
 
-如果要在終端機手動測試 OpenRouter cleanup，可以直接打 OpenRouter：
+如果要在終端機手動測試 dictation cleanup，可以直接打外部 provider endpoint。
+
+OpenRouter：
 
 ```bash
 curl -X POST https://openrouter.ai/api/v1/chat/completions \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "google/gemma-4-31b-it",
+    "model": "<OPENROUTER_MODEL_ID>",
+    "messages": [
+      {"role": "system", "content": "Clean up dictation text. Return only the corrected text."},
+      {"role": "user", "content": "呃 幫我 修正 這段話 的 標點"}
+    ]
+  }'
+```
+
+NVIDIA Build：
+
+```bash
+curl -X POST https://integrate.api.nvidia.com/v1/chat/completions \
+  -H "Authorization: Bearer $NVIDIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<NVIDIA_BUILD_MODEL_ID>",
     "messages": [
       {"role": "system", "content": "Clean up dictation text. Return only the corrected text."},
       {"role": "user", "content": "呃 幫我 修正 這段話 的 標點"}
@@ -325,7 +346,7 @@ Linux：
 journalctl --user-unit=qwen-openwhispr-asr.service -n 120 --no-pager
 ```
 
-OpenRouter cleanup 不會經過本機服務，所以本機日誌只會看到 ASR 相關訊息。可以用：
+Dictation cleanup 不會經過本機服務，所以本機日誌只會看到 ASR 相關訊息。可以用：
 
 ```bash
 journalctl --user --since "10 minutes ago" --no-pager | rg "Uvicorn|Qwen3-ASR"
@@ -342,16 +363,18 @@ Windows 日誌在：
 
 如果 OpenWhispr 的 cleaned text 變成 `Input:`、`Role:`、`Task:` 這類提示詞原文，代表
 language model 把 OpenWhispr 的 cleanup prompt 當成一般文字處理了。先確認 OpenWhispr
-的 `Language Models` 設定是 OpenRouter，而不是本機 Gemini proxy：
+的 `Language Models` 設定是 OpenRouter 或 NVIDIA Build，而不是本機 ASR server：
 
 ```text
 Provider: Custom
 Endpoint URL: https://openrouter.ai/api/v1
-Model: google/gemma-4-31b-it
+或
+Endpoint URL: https://integrate.api.nvidia.com/v1
+Model: 從 Available Models 按 Refresh 後選一個 chat/text 模型
 ```
 
-如果 Gemma 4 31B 仍然把 prompt 原文輸出，短句 cleanup 可改用
-`deepseek/deepseek-v4-flash` 作為備援。
+如果目前選的模型仍然把 prompt 原文輸出，短句 cleanup 可改用同一個 provider 清單裡其他
+chat/text 模型作為備援。
 
 ### 第一次啟動很久
 

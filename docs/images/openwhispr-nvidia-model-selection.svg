@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220" role="img" aria-labelledby="title desc">
-  <title id="title">OpenWhispr Available Models Gemma 4 31B</title>
-  <desc id="desc">OpenWhispr Available Models list showing Gemma 4 31B Instruct selected from OpenRouter custom provider.</desc>
+  <title id="title">OpenWhispr Available Models NVIDIA Build</title>
+  <desc id="desc">OpenWhispr Available Models list showing a NVIDIA Build text model selected from the custom provider.</desc>
   <rect width="900" height="220" fill="#ffffff"/>
   <rect x="0" y="0" width="212" height="220" fill="#f7f7f8"/>
 
@@ -16,21 +16,21 @@
   <circle cx="269" cy="56" r="6" fill="none" stroke="#6d6f75" stroke-width="1.5"/>
   <line x1="263" y1="56" x2="275" y2="56" stroke="#6d6f75" stroke-width="1.2"/>
   <line x1="269" y1="50" x2="269" y2="62" stroke="#6d6f75" stroke-width="1.2"/>
-  <text x="288" y="61" font-family="Arial, sans-serif" font-size="14" fill="#8d8f95">Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts model from Google DeepMind.</text>
+  <text x="288" y="61" font-family="Arial, sans-serif" font-size="14" fill="#8d8f95">Models load from the NVIDIA Build OpenAI-compatible /v1/models endpoint.</text>
 
   <rect x="240" y="82" width="632" height="36" rx="7" fill="#ffffff" stroke="#e7e7e8"/>
   <circle cx="252" cy="100" r="4" fill="#cccccc"/>
   <circle cx="269" cy="100" r="6" fill="none" stroke="#6d6f75" stroke-width="1.5"/>
   <line x1="263" y1="100" x2="275" y2="100" stroke="#6d6f75" stroke-width="1.2"/>
   <line x1="269" y1="94" x2="269" y2="106" stroke="#6d6f75" stroke-width="1.2"/>
-  <text x="288" y="105" font-family="Arial, sans-serif" font-size="14" fill="#8d8f95">Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image.</text>
+  <text x="288" y="105" font-family="Arial, sans-serif" font-size="14" fill="#8d8f95">Choose a chat/completions-capable text model available to your NVIDIA account.</text>
 
   <rect x="240" y="126" width="632" height="36" rx="7" fill="#f4f8ff" stroke="#5b95ff" stroke-width="2"/>
   <circle cx="252" cy="144" r="4" fill="#2f73ff"/>
   <circle cx="269" cy="144" r="6" fill="none" stroke="#4a5668" stroke-width="1.5"/>
   <line x1="263" y1="144" x2="275" y2="144" stroke="#4a5668" stroke-width="1.2"/>
   <line x1="269" y1="138" x2="269" y2="150" stroke="#4a5668" stroke-width="1.2"/>
-  <text x="288" y="149" font-family="Arial, sans-serif" font-size="14" fill="#6f7582">Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image.</text>
+  <text x="288" y="149" font-family="Arial, sans-serif" font-size="14" fill="#6f7582">Selected NVIDIA Build text model for Dictation Cleanup.</text>
 
-  <text x="240" y="195" font-family="Arial, sans-serif" font-size="13" fill="#555b66">In OpenWhispr, choose the Gemma 4 31B Instruct row. If a manual model field is shown, use google/gemma-4-31b-it.</text>
+  <text x="240" y="195" font-family="Arial, sans-serif" font-size="13" fill="#555b66">In OpenWhispr, press Refresh and pick a NVIDIA Build text model from Available Models.</text>
 </svg>
